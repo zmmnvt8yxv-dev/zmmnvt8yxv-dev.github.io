@@ -94,7 +94,7 @@ function statGuess(map,patterns){
  return best==null?0:Number(best)
 }
 function playerContextFromMap(map,type){
- var gp=statGuess(map,['gamesPlayed','games','appearances']);if(!gp)gp=1;
+ var gp=statGuess(map,['gamesPlayed','games','appearances']);
  var rec=statGuess(map,['receptions','receivingReceptions']);
  var recY=statGuess(map,['receivingYards']);
  var rushY=statGuess(map,['rushingYards']);
@@ -103,15 +103,18 @@ function playerContextFromMap(map,type){
  var rushTD=statGuess(map,['rushingTouchdowns']);
  var recTD=statGuess(map,['receivingTouchdowns']);
  var sacks=statGuess(map,['sacks','defensiveSacks']);
- return{gp:gp,rec:rec/gp,recY:recY/gp,rushY:rushY/gp,passY:passY/gp,ints:ints/gp,td:(rushTD+recTD)/gp,combo:(rushY+recY)/gp,sacks:sacks/gp}
+ function avg(v){return gp?v/gp:0}
+ return{gp:gp,rec:avg(rec),recY:avg(recY),rushY:avg(rushY),passY:avg(passY),ints:avg(ints),td:avg(rushTD+recTD),combo:avg(rushY+recY),sacks:avg(sacks)}
 }
 function playerName(l){return['stat','td','combo','longrush','q4rush','sack'].indexOf(l[0])>=0?l[3]:''}
 
 async function fj(u){var r=await fetch(u+(u.indexOf('?')>=0?'&':'?')+'_='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
+var rosterCache={};
+async function getRoster(t){t=nt(t);if(rosterCache[t])return rosterCache[t];rosterCache[t]=fj(API+'/teams/'+t+'/roster').catch(function(){return null});return rosterCache[t]}
 async function athleteForLeg(l,q){
  var p=playerName(l);if(!p)return'';var id=deepAthleteId(q,p);if(id)return id;
  var teams=l[1]||[];
- for(var i=0;i<teams.length;i++){try{var ro=await fj(API+'/teams/'+nt(teams[i])+'/roster');id=deepAthleteId(ro,p);if(id)return id}catch(e){}}
+ for(var i=0;i<teams.length;i++){try{var ro=await getRoster(teams[i]);id=deepAthleteId(ro,p);if(id)return id}catch(e){}}
  return''
 }
 async function loadContext(es,qs){
@@ -137,20 +140,20 @@ function seasonLine(l,ctx){
  if(l[0]==='ml'){a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 PPG: '+l[1][0]+' '+fmt(a.ppg)+' • '+l[1][1]+' '+fmt(b.ppg);}
  if(l[0]==='spread'){a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 avg margin: '+l[1][0]+' '+(a.margin>=0?'+':'')+fmt(a.margin)+' • '+l[1][1]+' '+(b.margin>=0?'+':'')+fmt(b.margin);}
  if(l[0]==='dst'){a=tctx(l[3],ctx);if(a)return'2026 '+l[3]+': '+fmt(a.ppg)+' scored • '+fmt(a.papg)+' allowed/game';}
- p=pctx(playerName(l),ctx);if(!p)return'2026 season average loading/unavailable';
+ p=pctx(playerName(l),ctx);if(!p||!p.gp)return'2026 season average unavailable';
  if(l[0]==='stat'){
   if(l[4]==='receiving'&&l[5]==='REC')x=p.rec+' receptions/game';
   else if(l[4]==='receiving')x=p.recY+' receiving yds/game';
   else if(l[4]==='rushing')x=p.rushY+' rushing yds/game';
   else if(l[4]==='passing'&&l[5]==='INT')x=p.ints+' INT/game';
   else if(l[4]==='passing')x=p.passY+' passing yds/game';
-  if(x)return'2026 avg: '+fmt(parseFloat(x))+' '+x.replace(/^[\d.]+\s*/,'');
+  if(x)return'2026 avg: '+fmt(parseFloat(x))+' '+x.replace(/^[\d.]+\s*/,'')+' • '+p.gp+' games';
  }
- if(l[0]==='td')return'2026 avg: '+fmt(p.td)+' rushing/receiving TD/game';
- if(l[0]==='combo')return'2026 avg: '+fmt(p.combo)+' rush + rec yds/game';
- if(l[0]==='longrush')return'2026 context: '+fmt(p.rushY)+' rushing yds/game';
- if(l[0]==='q4rush')return'2026 context: '+fmt(p.rushY)+' full-game rushing yds/game';
- if(l[0]==='sack')return'2026 avg: '+fmt(p.sacks)+' sacks/game';
+ if(l[0]==='td')return'2026 avg: '+fmt(p.td)+' rushing/receiving TD/game • '+p.gp+' games';
+ if(l[0]==='combo')return'2026 avg: '+fmt(p.combo)+' rush + rec yds/game • '+p.gp+' games';
+ if(l[0]==='longrush')return'2026 context: '+fmt(p.rushY)+' rushing yds/game • '+p.gp+' games';
+ if(l[0]==='q4rush')return'2026 context: '+fmt(p.rushY)+' full-game rushing yds/game • '+p.gp+' games';
+ if(l[0]==='sack')return'2026 avg: '+fmt(p.sacks)+' sacks/game • '+p.gp+' games';
  return''
 }
 function targetText(l){
