@@ -108,7 +108,12 @@ function playerContextFromMap(map,type){
 }
 function playerName(l){return['stat','td','combo','longrush','q4rush','sack'].indexOf(l[0])>=0?l[3]:''}
 
-async function fj(u){var r=await fetch(u+(u.indexOf('?')>=0?'&':'?')+'_='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
+async function fj(u){
+ var target=u+(u.indexOf('?')>=0?'&':'?')+'_='+Date.now(),errs=[];
+ try{var r=await fetch(target,{cache:'no-store'});if(r.ok)return await r.json();errs.push('direct '+r.status)}catch(e){errs.push('direct network')}
+ try{var p='https://api.allorigins.win/raw?url='+encodeURIComponent(target),r2=await fetch(p,{cache:'no-store'});if(r2.ok)return await r2.json();errs.push('relay '+r2.status)}catch(e){errs.push('relay network')}
+ throw Error(errs.join(', '))
+}
 var rosterCache={};
 async function getRoster(t){t=nt(t);if(rosterCache[t])return rosterCache[t];rosterCache[t]=fj(API+'/teams/'+t+'/roster').catch(function(){return null});return rosterCache[t]}
 async function athleteForLeg(l,q){
@@ -136,11 +141,11 @@ function tctx(t,ctx){return ctx&&ctx.teams&&ctx.teams[nt(t)]}
 function pctx(p,ctx){return ctx&&ctx.players&&ctx.players[nm(p)]}
 function seasonLine(l,ctx){
  var a,b,p,x;
- if(l[0]==='total'){a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 scoring avg: '+l[1][0]+' '+fmt(a.ppg)+' + '+l[1][1]+' '+fmt(b.ppg)+' = '+fmt(a.ppg+b.ppg)+' pts/game';}
- if(l[0]==='ml'){a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 PPG: '+l[1][0]+' '+fmt(a.ppg)+' • '+l[1][1]+' '+fmt(b.ppg);}
- if(l[0]==='spread'){a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 avg margin: '+l[1][0]+' '+(a.margin>=0?'+':'')+fmt(a.margin)+' • '+l[1][1]+' '+(b.margin>=0?'+':'')+fmt(b.margin);}
- if(l[0]==='dst'){a=tctx(l[3],ctx);if(a)return'2026 '+l[3]+': '+fmt(a.ppg)+' scored • '+fmt(a.papg)+' allowed/game';}
- p=pctx(playerName(l),ctx);if(!p||!p.gp)return'2026 season average unavailable';
+ if(l[0]==='total'){if(!ctx)return'Loading 2026 team scoring averages…';a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 scoring avg: '+l[1][0]+' '+fmt(a.ppg)+' + '+l[1][1]+' '+fmt(b.ppg)+' = '+fmt(a.ppg+b.ppg)+' pts/game';}
+ if(l[0]==='ml'){if(!ctx)return'Loading 2026 team scoring averages…';a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 PPG: '+l[1][0]+' '+fmt(a.ppg)+' • '+l[1][1]+' '+fmt(b.ppg);}
+ if(l[0]==='spread'){if(!ctx)return'Loading 2026 team margins…';a=tctx(l[1][0],ctx);b=tctx(l[1][1],ctx);if(a&&b)return'2026 avg margin: '+l[1][0]+' '+(a.margin>=0?'+':'')+fmt(a.margin)+' • '+l[1][1]+' '+(b.margin>=0?'+':'')+fmt(b.margin);}
+ if(l[0]==='dst'){if(!ctx)return'Loading 2026 team averages…';a=tctx(l[3],ctx);if(a)return'2026 '+l[3]+': '+fmt(a.ppg)+' scored • '+fmt(a.papg)+' allowed/game';}
+ p=pctx(playerName(l),ctx);if(!ctx)return'Loading 2026 season average…';if(!p||!p.gp)return'2026 season average unavailable';
  if(l[0]==='stat'){
   if(l[4]==='receiving'&&l[5]==='REC')x=p.rec+' receptions/game';
   else if(l[4]==='receiving')x=p.recY+' receiving yds/game';
@@ -172,6 +177,7 @@ function targetText(l){
 function targetState(s,fin,x,target,strict){var hit=strict?x>target:x>=target;if(hit)return{state:'hit',detail:'Target reached.'};if(fin)return{state:'lost',detail:'Finished short.'};return{state:s,detail:'Needs '+(strict?(Math.floor(target)+1-x):Math.ceil(target-x))+' more.'}}
 function evalLeg(l,q,e,ctx){
  var c=comp(q,e),gs=st(q,e),live=gs.v==='in',fin=gs.v==='post',pre=!live&&!fin,s=live?'live':(fin?'final':'pre'),a=score(c,l[1][0]),b=score(c,l[1][1]),v='',d='',x=0,y=0,r;
+ if(live&&!q&&['stat','td','combo','longrush','q4rush','sack','dst'].indexOf(l[0])>=0){return{x:l,s:'live',v:'Updating live stat…',d:seasonLine(l,ctx),g:l[1][0]+' '+a+' — '+l[1][1]+' '+b+' · '+gs.d,season:seasonLine(l,ctx)}}
  if(pre){v=targetText(l);d=seasonLine(l,ctx);var when=e?gs.d:'Scheduled';return{x:l,s:'pre',v:v,d:d,g:l[1][0]+' @ '+l[1][1]+' · '+when,season:d}}
  if(l[0]==='total'){x=a+b;v=x+' / '+l[4];if(l[3]==='over'){if(x>l[4]){s='hit';d='Over cleared.'}else if(fin){s='lost';d='Finished short.'}else d='Needs '+(Math.floor(l[4]-x)+1)+' more total points.'}else{if(x>l[4]){s='lost';d='Under can no longer hit.'}else if(fin){s='hit';d='Final stayed under.'}else d=fmt(l[4]-x)+' points below the line.'}}
  if(l[0]==='ml'){x=l[3]===l[1][0]?a:b;y=l[3]===l[1][0]?b:a;v=l[3]+' '+x+' — '+y;if(fin){s=x>y?'hit':'lost';d=s==='hit'?'Moneyline won.':'Moneyline lost.'}else d=x>y?'Currently leading by '+(x-y)+'.':x<y?'Currently trailing by '+(y-x)+'.':'Game tied.'}
@@ -191,16 +197,36 @@ function filters(){var arr=[{id:'all',txt:'All 3 Bets'}].concat(S.map(function(s
 function setFilter(id){selected=id;localStorage.setItem('betpulseFilter',id);render(lastData)}
 function render(data){lastData=data;var h=filters();data.forEach(function(s){if(selected!=='all'&&selected!==s.id)return;var hit=s.a.filter(function(x){return x.s==='hit'}).length,live=s.a.filter(function(x){return x.s==='live'}).length,lost=s.a.filter(function(x){return x.s==='lost'}).length,up=s.a.filter(function(x){return x.s==='pre'}).length;s.a.sort(function(a,b){var p={live:0,hit:1,pre:2,final:3,lost:4,push:3};return(p[a.s]||3)-(p[b.s]||3)});h+='<section class="book '+s.cls+'"><div class="betlabel">'+s.tag+'</div><div class="bh"><div><div class="bn">'+s.n+'</div><div class="betmoney">'+s.w+' → '+s.p+'</div></div><div class="legcount">'+s.a.length+' legs</div></div><div class="sum"><span><b>'+hit+'</b>Hit</span><span><b>'+live+'</b>Live</span><span><b>'+lost+'</b>Lost</span><span><b>'+up+'</b>Upcoming</span></div>'+s.a.map(card).join('')+'</section>'});document.getElementById('app').innerHTML=h}
 async function go(){
- if(busy)return;busy=true;document.getElementById('big').textContent='Refreshing…';document.getElementById('last').textContent='Fetching games + season context…';
+ if(busy)return;busy=true;
+ document.getElementById('big').textContent='Refreshing…';
+ document.getElementById('last').textContent='Fetching schedule…';
  try{
-  var b=await fj(API+'/scoreboard?limit=100&dates='+R),es=b.events||[],ids={};
-  S.forEach(function(s){s.l.forEach(function(l){var e=ev(es,l[1]);if(e)ids[e.id]=e})});
-  var qs={};await Promise.all(Object.keys(ids).map(async function(id){try{qs[id]=await fj(API+'/summary?event='+id)}catch(e){qs[id]=null}}));
-  var ctx=await loadContext(es,qs);
-  var data=S.map(function(s){return{id:s.id,tag:s.tag,n:s.n,w:s.w,p:s.p,cls:s.cls,a:s.l.map(function(l){var e=ev(es,l[1]);return evalLeg(l,e&&qs[e.id],e,ctx)})}});
-  render(data);document.getElementById('last').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
-  document.getElementById('note').innerHTML='<b>Fresh snapshot loaded.</b> Before kickoff, cards show 2026 per-game averages; once games start, they switch to live progress while keeping the season context underneath.';
- }catch(e){document.getElementById('last').textContent='Refresh failed';document.getElementById('note').innerHTML='<span class="err"><b>Could not reach ESPN.</b> Check service and tap Refresh again.</span>'}
- busy=false;document.getElementById('big').textContent='↻ Refresh BetPulse'
+  var b=await fj(API+'/scoreboard?limit=100&dates='+R),es=b.events||[],qs={},ctx=null;
+  try{var cc=JSON.parse(localStorage.getItem('betpulseContext_20260927_v3')||'null');if(cc&&cc.data)ctx=cc.data}catch(e){}
+  function build(){return S.map(function(s){return{id:s.id,tag:s.tag,n:s.n,w:s.w,p:s.p,cls:s.cls,a:s.l.map(function(l){var e=ev(es,l[1]);return evalLeg(l,e&&qs[e.id],e,ctx)})}})}
+  render(build());
+  document.getElementById('last').textContent='Schedule loaded · updating stats…';
+  document.getElementById('note').innerHTML='<b>Games loaded.</b> Live stats and season averages are filling in now. You can use the page while they update.';
+
+  var active={};
+  (es||[]).forEach(function(e){var sv=e.status&&e.status.type&&e.status.type.state;if(sv==='in'||sv==='post')active[e.id]=e});
+  await Promise.all(Object.keys(active).map(async function(id){try{qs[id]=await fj(API+'/summary?event='+id)}catch(e){qs[id]=null}}));
+  render(build());
+
+  busy=false;document.getElementById('big').textContent='↻ Refresh BetPulse';
+  document.getElementById('last').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+
+  loadContext(es,qs).then(function(newCtx){
+    ctx=newCtx;render(build());
+    document.getElementById('last').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+    document.getElementById('note').innerHTML='<b>Fresh snapshot loaded.</b> Pregame cards show 2026 per-game averages; live cards show current progress with season context underneath.';
+  }).catch(function(){
+    document.getElementById('note').innerHTML='<b>Games loaded.</b> Live tracking is available; some season-average context could not be loaded right now.';
+  });
+ }catch(e){
+  busy=false;document.getElementById('big').textContent='↻ Refresh BetPulse';
+  document.getElementById('last').textContent='Refresh failed';
+  document.getElementById('note').innerHTML='<span class="err"><b>Could not load the NFL feed.</b> Tap Refresh again. <span class="tiny">'+String(e.message||e)+'</span></span>';
+ }
 }
 go();
