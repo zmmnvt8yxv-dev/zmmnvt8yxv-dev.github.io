@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102733">
+  <meta name="description" content="Tatnall Legacy Waiver Lab: compare processed Sleeper FAAB bids, scout other managers and explore conditional waiver bid scenarios.">
+  <link rel="icon" type="image/svg+xml" href="/TatnallLegacy/favicon.svg">
+  <link rel="stylesheet" href="./style.css">
+  <title>Waiver Lab | Tatnall Legacy</title>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to Waiver Lab</a>
+  <header class="masthead">
+    <a class="brand" href="/TatnallLegacy/" aria-label="Tatnall Legacy home"><span class="mark">TL<span>✦</span></span><span><strong>TATNALL <em>LEGACY</em></strong><small>THE LEAGUE. THE STORIES. THE RECORD.</small></span></a>
+    <nav aria-label="Waiver Lab navigation"><a href="/TatnallLegacy/">League home</a><a href="/TatnallLegacy/transactions">Transactions</a><a href="/TatnallLegacy/waiver-lab/" aria-current="page">Waiver Lab</a></nav>
+  </header>
+  <main id="main" class="wrap">
+    <div class="eyebrow">TATNALL INTELLIGENCE / STRATEGY DESK</div>
+    <div class="hero"><div><h1>Waiver Lab<span>.</span></h1><p>Know your league's bidding habits before you spend your FAAB. Historical claims, live balances, and what-if bidding scenarios — without accessing anyone's pending bids.</p></div><div class="target" aria-hidden="true">◎</div></div>
+    <p class="trust">✓ READ-ONLY SLEEPER API &nbsp; • &nbsp; NO LOGIN &nbsp; • &nbsp; NO CLAIMS SUBMITTED</p>
+    <section class="panel source" aria-labelledby="source-heading">
+      <div class="sectionhead"><div><div class="eyebrow">01 / CONNECT</div><h2 id="source-heading">League history</h2></div><span class="pill">Processed claims only</span></div>
+      <form id="source-form">
+        <label class="field source-id">Sleeper league ID<input id="league-id" inputmode="numeric" pattern="[0-9]{8,25}" placeholder="Enter your league ID" required autocomplete="off"></label>
+        <label class="check"><input type="checkbox" id="include-previous" checked> Include the previous season</label>
+        <button class="primary" id="load" type="submit">↻ Load history</button>
+      </form>
+      <div id="load-status" class="status" role="status" aria-live="polite">Enter your league ID or use a bookmarked league link.</div>
+      <div id="warnings"></div>
+    </section>
+    <div id="results" hidden>
+      <section class="panel" aria-labelledby="sim-heading">
+        <div class="sectionhead"><div><div class="eyebrow">02 / SIMULATE</div><h2 id="sim-heading">FAAB strategy desk</h2></div><span class="pill">Scenario model v1</span></div>
+        <div class="controls">
+          <label class="field">Your franchise<select id="your-team" aria-label="Your franchise"></select></label>
+          <label class="field">Target player (optional label)<input id="target-name" type="text" placeholder="e.g. breakout running back" maxlength="70"></label>
+          <label class="field">Position<select id="position"><option>RB</option><option>WR</option><option>QB</option><option>TE</option><option>K</option><option>DEF</option></select></label>
+          <label class="field">Market pressure<select id="urgency"><option value="cautious">Quiet (−25%)</option><option value="normal" selected>Normal (historical)</option><option value="aggressive">Hot pickup (+50%)</option></select></label>
+          <label class="field">Assume toughest rivals bidding<select id="rivals"></select></label>
+        </div>
+        <div id="forecast"><p class="placeholder">Choose your franchise to see estimated bids.</p></div>
+      </section>
+      <section class="panel" aria-labelledby="scout-heading">
+        <div class="sectionhead"><div><div class="eyebrow">03 / SCOUT</div><h2 id="scout-heading">Manager tendencies</h2></div><span class="pill" id="owner-count"></span></div>
+        <div id="manager-table"></div>
+        <h3>Historical bid evidence</h3>
+        <p class="subtle">Open a manager to inspect processed waiver bids, including failed claims. Not every failure means another manager outbid them.</p>
+        <div id="manager-detail"></div>
+      </section>
+    </div>
+    <section class="method"><h2>What these numbers mean</h2><p>Bid thresholds are conditional on your selected competitors submitting claims for the <strong>same</strong> player. This is not a prediction that they will make those claims. Earlier season data receives less weight; sparse manager histories are blended with league bidding patterns. Equal bids count as losses in the model because tie-breaking priority is unknown. Other managers' pending claims and unaccepted private trades are not available via Sleeper's public API.</p><p>The model cannot measure a player's actual pickup value. “Target player” is a label, not an input to the math. There is no paid service, league write operation, or stored bid history on this site.</p></section>
+    <footer><a href="/TatnallLegacy/">← Return to Tatnall Legacy</a><a href="https://docs.sleeper.com/" target="_blank" rel="noreferrer">Sleeper API reference ↗</a></footer>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
