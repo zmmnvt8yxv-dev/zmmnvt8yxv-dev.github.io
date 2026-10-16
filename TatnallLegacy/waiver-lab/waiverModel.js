@@ -44,13 +44,17 @@ export function normalizeWaiverClaims(snapshots, players = {}) {
       if (seen.has(identity)) continue;
       seen.add(identity);
       const playerId = Object.keys(tx.adds || {})[0] || null;
-      // "Failed" includes lost bidding and other waiver-processing failures;
-      // do not label all failures as outbid.
+      // A rejected claim can fail roster-size/eligibility checks without
+      // ever participating in the competing-player auction. Keep it in the
+      // evidence table, but exclude it from the bidding distribution.
+      const reason = String(tx.metadata?.notes || "");
+      const competitive = tx.status === "complete" ||
+        /claimed by another owner|outbid|another manager claimed/i.test(reason);
       claims.push({
         transactionId, leagueId, userId, rosterId, season,
         week: Number(tx.leg ?? tx.week ?? snapshot.week ?? 0),
-        bid, status: tx.status,
-        reason: tx.metadata?.notes || null,
+        bid, status: tx.status, competitive,
+        reason: reason || null,
         playerId, position: playerId ? playerPosition(players, playerId) : null
       });
     }
@@ -91,6 +95,7 @@ export function managerProfiles(snapshots, claims) {
       currentWins: thisSeason.filter(c => c.status === "complete").length,
       zeroBids: own.filter(c => c.bid === 0).length,
       paidClaims: positive.length,
+      excludedFailures: own.filter(c => c.status === "failed" && !c.competitive).length,
       currentPaidClaims: currentPositive.length,
       medianPositive,
       maxBid: numbers.length ? numbers[numbers.length - 1] : null,
@@ -139,13 +144,14 @@ export function forecastWaiver({
 }) {
   const own = profiles.find(p => p.userId === String(ownUserId));
   if (!own) return { available: false, reason: "Choose your roster to estimate an affordable bid." };
-  if (!claims.length) return { available: false, reason: "No processed waiver claims are available yet." };
+  const qualified = claims.filter(c => c.competitive !== false);
+  if (!qualified.length) return { available: false, reason: "No competitive waiver bids are available yet." };
   const currentSeason = Number(season) || Math.max(...claims.map(c => c.season));
   const currentWeek = Number(week) || 1;
   const multipliers = { cautious: 0.75, normal: 1, aggressive: 1.5 };
   const factor = multipliers[urgency] ?? 1;
   const opponents = profiles.filter(p => p.userId !== own.userId).map(profile => {
-    const distribution = rivalDistribution(claims, profile.userId, position, currentSeason, currentWeek);
+    const distribution = rivalDistribution(qualified, profile.userId, position, currentSeason, currentWeek);
     const expectation = weightedAverage(distribution.personal, row => effectiveOpponentBid(row.bid, profile, factor));
     const poolExpectation = weightedAverage(distribution.pooled, row => effectiveOpponentBid(row.bid, profile, factor));
     return {
@@ -156,7 +162,7 @@ export function forecastWaiver({
   }).sort((a, b) => b.threat - a.threat || a.profile.name.localeCompare(b.profile.name));
   const selection = opponents.slice(0, clamp(Math.round(Number(competingManagers) || 1), 1, opponents.length));
   if (!selection.length) return { available: false, reason: "No competing rosters were found." };
-  const totalPositionSamples = claims.filter(c => c.position === position).length;
+  const totalPositionSamples = qualified.filter(c => c.position === position).length;
   const maxBudget = own.balance == null ? own.totalBudget : own.balance;
   const maxBid = Number.isFinite(maxBudget) ? Math.max(0, Math.floor(maxBudget)) : 100;
   const chanceAt = bid => {
@@ -180,13 +186,14 @@ export function forecastWaiver({
     })),
     requestedPosition: position,
     positionSampleCount: totalPositionSamples,
-    pooledSampleCount: claims.length,
+    pooledSampleCount: qualified.length,
+    excludedNoncompetitive: claims.length - qualified.length,
     fallbackUsed: totalPositionSamples < 8,
     competitorsAssumed: selection.length,
     zeroDollar: chanceAt(0),
     bids: { half: bidAt(0.5), strong: bidAt(0.75), safer: bidAt(0.9) },
     curve, probabilityAt: chanceAt,
-    confidence: claims.length < 20 || totalPositionSamples < 8 ? "limited" :
+    confidence: qualified.length < 20 || totalPositionSamples < 8 ? "limited" :
       selection.some(item => item.distribution.ownCount < 5) ? "moderate" : "informative",
     method: "Conservative empirical estimate; ties counted as losses; assumes the selected rivals submit claims for the same player."
   };
