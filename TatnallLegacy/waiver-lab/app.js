@@ -81,7 +81,7 @@ function renderManagers() {
   $("manager-detail").innerHTML = profiles.map(p => {
     const history = claims.filter(c => c.userId === p.userId).sort((a, b) => b.season - a.season || b.week - a.week);
     return '<details class="evidence"><summary>' + escapeHtml(p.name) + '<small>' + history.length + ' claims · ' + p.wins + ' completed · ' + p.losses + ' failed</small></summary><div class="table-wrap"><table class="table"><thead><tr><th>Season / week</th><th>Position</th><th>Bid</th><th>Status</th><th>Processing note</th></tr></thead><tbody>' +
-      (history.length ? history.map(c => '<tr><td>' + c.season + ' · W' + c.week + '</td><td>' + escapeHtml(c.position || "Unknown") + '</td><td>' + dollar(c.bid) + '</td><td><span class="badge ' + (c.status === "complete" ? "good" : "bad") + '">' + escapeHtml(c.status) + '</span></td><td>' + escapeHtml(c.reason || "No note") + '</td></tr>').join("") : '<tr><td colspan="5">No processed claims found for this manager.</td></tr>') +
+      (history.length ? history.map(c => '<tr><td>' + c.season + ' · W' + c.week + '</td><td>' + escapeHtml(c.position || "Unknown") + '</td><td>' + dollar(c.bid) + '</td><td><span class="badge ' + (c.status === "complete" ? "good" : "bad") + '">' + escapeHtml(c.status) + '</span></td><td>' + escapeHtml(c.reason || "No note") + (c.status === "failed" && !c.competitive ? " · excluded from model" : "") + '</td></tr>').join("") : '<tr><td colspan="5">No processed claims found for this manager.</td></tr>') +
       "</tbody></table></div></details>";
   }).join("");
 }
@@ -125,7 +125,7 @@ function renderForecast() {
     '<div class="endpoints"><span>$0</span><span>Your FAAB: ' + dollar(result.own.balance) + '</span></div>' + plot(result.curve) +
     '</div><aside class="rivals-box"><h3>Modeled opponents</h3><p>Assumes every listed opponent submits a claim for the same player. These are the highest estimated spenders in the chosen scenario.</p><ol>' +
     result.opponents.map(op => '<li>' + escapeHtml(op.name) + '<small>' + op.samples + ' observed claims · ' + dollar(op.balance) + ' FAAB left</small></li>').join("") +
-    '</ol><p>Evidence: <strong>' + escapeHtml(result.confidence) + '</strong><br>' + result.positionSampleCount + ' known ' + escapeHtml(position) + ' claims out of ' + result.pooledSampleCount + ' overall</p></aside></div>' +
+    '</ol><p>Evidence: <strong>' + escapeHtml(result.confidence) + '</strong><br>' + result.positionSampleCount + ' known ' + escapeHtml(position) + ' competitive bids out of ' + result.pooledSampleCount + ' qualified bids<br>' + result.excludedNoncompetitive + ' noncompetitive failures excluded</p></aside></div>' +
     '<p class="fineprint">Scenario estimates are not calibrated real-world probabilities. They combine observed completed and failed claims, recency-weighted manager histories, and a league-wide fallback. Tied bids count as losses. Opponent bidding decisions can be correlated. ' +
     (result.fallbackUsed ? 'Position evidence is too sparse to rely on, so the league-wide distribution is used.' : 'Position-specific bidding history informs this scenario.') + '</p>';
   $("bid-slider").addEventListener("input", event => {
